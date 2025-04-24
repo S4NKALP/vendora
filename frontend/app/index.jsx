@@ -24,6 +24,7 @@ import ShippingAddressScreen from './screens/ShippingAddressScreen';
 import ChooseShippingScreen from './screens/ChooseShippingScreen';
 import ConfirmPayment from './screens/ConfirmPayment';
 import AddCardScreen from './screens/AddCardScreen';
+import AddBankScreen from './screens/AddBankScreen';
 import LocationScreen from './screens/LocationScreen';
 import AccessLocation from './screens/AccessLocation';
 import SignInScreen from './screens/SignInScreen';
@@ -123,6 +124,7 @@ export default function Index() {
       <Stack.Screen name='Location' component={LocationScreen} />
       <Stack.Screen name='Payment Success' component={PaymentSuccess} />
       <Stack.Screen name='Add Card' component={AddCardScreen} />
+      <Stack.Screen name='Add Bank' component={AddBankScreen} />
       <Stack.Screen name='Confirm Payment' component={ConfirmPayment} />
       <Stack.Screen name='Choose Shipping' component={ChooseShippingScreen} />
       <Stack.Screen name='Checkout' component={CheckOutScreen} />

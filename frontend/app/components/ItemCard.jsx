@@ -1,30 +1,50 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
-import Icon from 'react-native-vector-icons/FontAwesome';
+import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
+import { HeartIcon } from 'react-native-heroicons/outline';
+import { HeartIcon as SolidHeartIcon, StarIcon } from 'react-native-heroicons/solid';
+import { useNavigation } from '@react-navigation/native';
 
-const ItemCard = ({ item, onPress, onFavoritePress, isFavourite }) => (
-  <View style={styles.card}>
-    <TouchableOpacity onPress={onPress}>
-      <Image source={{ uri: item.image }} style={styles.image} />
+const ItemCard = ({ item, isFavorite, onToggleFavorite }) => {
+  const navigation = useNavigation();
+
+  return (
+    <TouchableOpacity
+      onPress={() => navigation.navigate('ProductDetails', { id: item.id })}
+      className="relative"
+      style={{ width: wp('45%') }}
+    >
+      <Image 
+        source={{ uri: item.image || 'https://via.placeholder.com/150' }} 
+        style={{ height: hp('20%') }}
+        className="object-cover rounded-3xl" 
+      />
       <TouchableOpacity 
-        style={styles.heartButton}
-        onPress={onFavoritePress}
+        onPress={(e) => {
+          e.stopPropagation();
+          onToggleFavorite(item);
+        }} 
+        className="absolute right-4 top-4 bg-white/50 p-2 rounded-full"
       >
-        <Icon 
-          name={isFavourite ? "heart" : "heart-o"} 
-          size={20} 
-          color={isFavourite ? "#ff0000" : "#333"} 
-        />
+        {isFavorite ? (
+          <SolidHeartIcon size={wp('5%')} color="red" />
+        ) : (
+          <HeartIcon size={wp('5%')} color="black" />
+        )}
       </TouchableOpacity>
+      <View className="flex-row justify-between px-1 mt-2">
+        <Text style={{ fontSize: wp('3.5%') }} className="flex-1">{item.name || item.title}</Text>
+        <View className="flex-row gap-1">
+          <StarIcon size={wp('4%')} color={"orange"} />
+          <Text style={{ fontSize: wp('3.5%') }}>{item.rating || 0}</Text>
+        </View>
+      </View>
+      <View className="px-1">
+        <Text style={{ fontSize: wp('4%') }} className="font-medium">Rs {item.price || 0}</Text>
+      </View>
     </TouchableOpacity>
-    <Text style={styles.title}>{item.title}</Text>
-    <Text style={styles.price}>${item.price}</Text>
-    <View style={styles.ratingContainer}>
-      <Text style={styles.rating}>{item.rating}</Text>
-      <Icon name="star" size={16} color="#f5a623" />
-    </View>
-  </View>
-);
+  );
+}
 
 const styles = StyleSheet.create({
   card: {

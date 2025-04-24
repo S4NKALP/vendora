@@ -2,8 +2,10 @@ import { View, Text, TextInput, TouchableOpacity, Image, ActivityIndicator } fro
 import React, { useState } from 'react'
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { EyeIcon, EyeSlashIcon } from 'react-native-heroicons/outline';
-import { loginUser } from '../api';
+import { login } from '../api';
 import { useNavigation } from '@react-navigation/native';
+import { STORAGE_KEYS } from '../constants/storageKeys';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function SignInScreen() {
     const navigation = useNavigation();
@@ -45,10 +47,10 @@ export default function SignInScreen() {
         setLoading(true);
         
         try {
-            // Call loginUser with credentials
-            const result = await loginUser({ username, password });
+            // Call login with credentials
+            const result = await login({ username, password });
             
-            if (result && result.success) {
+            if (result && result.token) {
                 console.log('Login successful');
                 navigation.navigate("Main");
             } else {

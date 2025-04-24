@@ -9,11 +9,20 @@ import { useNavigation } from '@react-navigation/native';
 export default function PaymentSuccess() {
   const navigation = useNavigation()
 
+  const handleBack = () => {
+    // Navigate to Main screen instead of going back
+    navigation.goBack();
+  };
+
+  const handleViewOrder = () => {
+    navigation.navigate('Order');
+  };
+
   return (
     <View className={`bg-white flex-col`} style={{ height: hp("97%") }}>
       <TabBar
         prefix={""}
-        title={" Payment"}
+        title={"Order Status"}
         suffix={<ChevronLeftIcon size={25} color={'black'} />}
         titleStyle={{
           color: "black",
@@ -29,7 +38,7 @@ export default function PaymentSuccess() {
           borderColor: "black"
         }}
         containerStyle=""
-        suffixAction={() => navigation.goBack()}
+        suffixAction={handleBack}
       />
       <View className={`flex-1 justify-center`}>
         <View className={`justify-center items-center mx-4`}>
@@ -37,21 +46,20 @@ export default function PaymentSuccess() {
             <CheckIcon size={70} color={"white"} />
           </View>
           <View className={`items-center justify-center`}>
-            <Text className={`text-3xl font-bold p-6 mt-3`}>Payment Successful !</Text>
-            <Text className={`text-gray-500`} style={{ width: wp('50%') }}>Thank you for your purchase.</Text>
+            <Text className={`text-3xl font-bold p-6 mt-3`}>Order Successful!</Text>
+            <Text className={`text-gray-500 text-center`} style={{ width: wp('70%') }}>
+              Thank you for your order. Your order has been placed successfully and will be processed soon.
+            </Text>
           </View>
-        </View>
-      </View>
-        <View className={`⁠ bg-white py-6 rounded-tl-2xl border rounded-tr-2xl gap-3 px-4  border-gray-300`}>
-      <TouchableOpacity className={``}>
-          <TouchableOpacity onPress={()=>{navigation.navigate('Order')}} className={` rounded-full bg-primary flex-row justify-center items-center `} style={{ height: hp('5%') }}>
-            <Text className={`text-white text-lg font-semibold`}>View Order</Text>
+          
+          <TouchableOpacity
+            onPress={handleViewOrder}
+            className="bg-primary py-3 px-6 rounded-full mt-8"
+          >
+            <Text className="text-white font-semibold text-lg">View Order</Text>
           </TouchableOpacity>
-      </TouchableOpacity>
-      <View className={`mx-4 items-center`}>
-        <Text className={`text-primary text-xl`}>View E-Reciept</Text>
-      </View>
         </View>
+      </View>
     </View>
   )
 }

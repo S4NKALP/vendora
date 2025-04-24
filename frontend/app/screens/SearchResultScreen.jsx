@@ -102,9 +102,9 @@ const SearchResultScreen = () => {
                         className="absolute right-4 top-4 bg-white/50 p-2 rounded-full"
                     >
                         {isFavorite ? (
-                            <Icon name='heart' size={16} color={"red"} />
+                            <SolidHeartIcon size={20} color="red" />
                         ) : (
-                            <HeartIcon size={20} color={"white"} />
+                            <HeartIcon size={20} color="black" />
                         )}
                     </TouchableOpacity>
                 </TouchableOpacity>

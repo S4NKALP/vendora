@@ -2,6 +2,7 @@ import { View, Text, Image, ActivityIndicator } from 'react-native'
 import React, { useState, useEffect } from 'react'
 import TabBar from '../themes/TabBar'
 import { ChevronLeftIcon, HeartIcon } from 'react-native-heroicons/outline'
+import { HeartIcon as SolidHeartIcon } from 'react-native-heroicons/solid'
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import MasonryList from '@react-native-seoul/masonry-list';
 import { TouchableOpacity } from 'react-native';
@@ -32,12 +33,36 @@ export default function JacketScreen() {
         const getProducts = async () => {
             try {
                 setLoading(true);
-                const data = await fetchProductsByCategory(categoryId);
-                setProducts(data);
                 setError(null);
+                
+                // Validate categoryId
+                if (!categoryId) {
+                    throw new Error('Category ID is required');
+                }
+                
+                // Ensure categoryId is a number
+                const parsedCategoryId = parseInt(categoryId);
+                if (isNaN(parsedCategoryId)) {
+                    throw new Error('Category ID must be a valid number');
+                }
+                
+                console.log('Fetching products for category:', parsedCategoryId);
+                const data = await fetchProductsByCategory(parsedCategoryId);
+                
+                // Validate response data
+                if (!data) {
+                    throw new Error('No data received from server');
+                }
+                
+                if (!Array.isArray(data)) {
+                    throw new Error('Invalid response format from server');
+                }
+                
+                setProducts(data);
             } catch (error) {
-                console.error('Error fetching products by category:', error);
+                console.error('Error fetching products:', error);
                 setError(error.message || 'Failed to fetch products');
+                setProducts([]);
             } finally {
                 setLoading(false);
             }
@@ -48,61 +73,40 @@ export default function JacketScreen() {
 
     if (loading) {
         return (
-            <View className="flex-1 justify-center items-center bg-white">
-                <ActivityIndicator size={45} color="#704f38" />
+            <View className="flex-1 justify-center items-center">
+                <ActivityIndicator size="large" color="#0000ff" />
+                <Text className="mt-4 text-gray-500">Loading products...</Text>
             </View>
         );
     }
 
     if (error) {
         return (
-            <View className="flex-1 justify-center items-center bg-white">
+            <View className="flex-1 justify-center items-center">
                 <Text className="text-red-500 text-lg">{error}</Text>
                 <TouchableOpacity 
-                    onPress={() => {
-                        setLoading(true);
-                        fetchProductsByCategory(categoryId)
-                            .then(data => {
-                                setProducts(data);
-                                setError(null);
-                            })
-                            .catch(err => setError(err.message || 'Failed to fetch products'))
-                            .finally(() => setLoading(false));
-                    }}
-                    className="mt-4 bg-primary py-2 px-4 rounded-lg"
+                    onPress={() => navigation.goBack()}
+                    className="mt-4 bg-blue-500 px-4 py-2 rounded-lg"
                 >
-                    <Text className="text-white">Retry</Text>
+                    <Text className="text-white">Go Back</Text>
                 </TouchableOpacity>
             </View>
         );
     }
 
     return (
-        <ScrollView className={`bg-white flex-col`} style={{ height: hp('98%') }}>
-            <TabBar
-                prefix={""}
-                title={title}
-                suffix={<ChevronLeftIcon size={25} color={'black'} />}
-                titleStyle={{
-                    color: "black",
-                    fontWeight: "bold",
-                    fontSize: 20
-                }}
-                prefixStyle={{
-                    backgroundColor: "transparent"
-                }}
-                suffixStyle={{
-                    backgroundColor: "white",
-                    borderWidth: 1,
-                    borderColor: "black"
-                }}
-                containerStyle=""
-                suffixAction={() => navigation.goBack()}
-            />
-            
+        <View className="flex-1 bg-white">
+            <View className="flex-row justify-between items-center p-4">
+                <TouchableOpacity onPress={() => navigation.goBack()}>
+                    <ChevronLeftIcon size={30} color="black" />
+                </TouchableOpacity>
+                <Text className="text-xl font-bold">{title}</Text>
+                <View style={{ width: 30 }} />
+            </View>
+
             {products.length === 0 ? (
-                <View className="items-center justify-center py-20">
-                    <Text className="text-lg text-gray-500">No products found in this category</Text>
+                <View className="flex-1 justify-center items-center">
+                    <Text className="text-gray-500 text-lg">No products found in this category</Text>
                 </View>
             ) : (
                 <MasonryList
@@ -110,60 +114,41 @@ export default function JacketScreen() {
                     keyExtractor={(item) => item.id.toString()}
                     numColumns={2}
                     showsVerticalScrollIndicator={false}
-                    renderItem={({ item, index }) => (
-                        <CardItem 
-                            item={item} 
-                            index={index} 
-                            isFavorite={favorites[item.id] || false}
-                            toggleFavorite={toggleFavorite}
-                            navigation={navigation} 
-                        />
+                    renderItem={({ item }) => (
+                        <TouchableOpacity
+                            className="m-2"
+                            onPress={() => navigation.navigate('Product', { product: item })}
+                        >
+                            <View className="bg-gray-100 rounded-lg overflow-hidden">
+                                <Image
+                                    source={{ uri: item.image }}
+                                    style={{ width: '100%', height: 200 }}
+                                    className="rounded-t-lg"
+                                />
+                                <View className="p-2">
+                                    <Text className="font-bold text-lg">{item.name}</Text>
+                                    <Text className="text-gray-500">${item.price}</Text>
+                                    <View className="flex-row items-center mt-1">
+                                        <StarIcon size={16} color="#FFD700" />
+                                        <Text className="ml-1">{item.average_rating || 0}</Text>
+                                    </View>
+                                </View>
+                                <TouchableOpacity
+                                    className="absolute top-2 right-2"
+                                    onPress={() => toggleFavorite(item.id)}
+                                >
+                                    {favorites[item.id] ? (
+                                        <SolidHeartIcon size={24} color="red" />
+                                    ) : (
+                                        <HeartIcon size={24} color="black" />
+                                    )}
+                                </TouchableOpacity>
+                            </View>
+                        </TouchableOpacity>
                     )}
-                    className="mx-4"
                 />
             )}
-        </ScrollView>
-    )
-}
-
-const CardItem = ({ item, index, toggleFavorite, isFavorite, navigation }) => {
-    let isEven = index % 2 === 0;
-    
-    return (
-        <View className={`${isEven ? "pr-4" : "pl-4"} flex-col gap-3 mb-4 mt-5`}>
-            <TouchableOpacity 
-                onPress={() => { 
-                    navigation.navigate('ProductDetails', { id: item.id }) 
-                }} 
-                className="relative"
-            >
-                <Image 
-                    source={{ uri: item.image }} 
-                    height={hp(20)} 
-                    className="object-cover rounded-3xl" 
-                />
-                <TouchableOpacity 
-                    onPress={() => toggleFavorite(item.id)} 
-                    className="absolute right-4 top-4 bg-white/50 p-2 rounded-full"
-                >
-                    {isFavorite ? (
-                        <Icon name='heart' size={16} color={"red"} />
-                    ) : (
-                        <HeartIcon size={20} color={"black"} />
-                    )}
-                </TouchableOpacity>
-            </TouchableOpacity>
-
-            <View className="flex-row justify-between px-1">
-                <Text>{item.name}</Text>
-                <View className="flex-row gap-1">
-                    <StarIcon size={20} color={"orange"} />
-                    <Text>{item.average_rating || 0}</Text>
-                </View>
-            </View>
-            <View className="px-1 ">
-                <Text className="font-medium">Rs {item.price}</Text>
-            </View>
+            <TabBar />
         </View>
-    )
+    );
 }

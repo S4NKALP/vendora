@@ -34,44 +34,45 @@ export default function Category({ categories = [] }) {
       image: "https://cdn-icons-png.flaticon.com/512/2934/2934315.png"
     }
   ]
-  
+
+  const handleCategoryPress = (category) => {
+    // Ensure we have a valid category ID
+    if (!category.id || isNaN(parseInt(category.id))) {
+      console.error('Invalid category ID:', category.id);
+      return;
+    }
+
+    // Navigate to the category screen with the category ID as a number
+    navigation.navigate('Category', {
+      title: category.name,
+      categoryId: parseInt(category.id)
+    });
+  };
+
   return (
-    <View className=" flex-col gap-4 mb-6">
-      <View className="flex-row justify-between items-center px-1 mx-4" >
-        <Text className="text-xl font-semibold">Category</Text>
-        <Text className="text-secondary font-medium">See All</Text>
-      </View>
+    <View className="flex-1">
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        className="ml-4"
+        className="flex-row gap-4"
       >
-        {
-          displayCategories.map((item, index) => {
-            return (
-              <TouchableOpacity 
-                key={item.id} 
-                onPress={() => { 
-                  navigation.navigate('Category', {
-                    categoryId: item.id,
-                    title: item.name
-                  })
-                }} 
-                className={`${index + 1 == displayCategories.length ? "mr-4" : " mr-4"} flex-col items-center gap-2`}
-              >
-                <View className="bg-secondary flex justify-center items-center rounded-full" style={{ height: hp('8%'), width: hp('8%') }}>
-                  <Image 
-                    source={{ uri: item.image }} 
-                    className="size-10"
-                    style={{ width: hp('6%'), height: hp('6%'), borderRadius: 30 }}
-                  />
-                </View>
-                <Text className="text-center">{item.name}</Text>
-              </TouchableOpacity>
-            )
-          })
-        }
+        {displayCategories.map((category, index) => (
+          <TouchableOpacity
+            key={category.id || index}
+            onPress={() => handleCategoryPress(category)}
+            className="items-center"
+          >
+            <View className="rounded-full p-4 bg-gray-100">
+              <Image
+                source={{ uri: category.image }}
+                style={{ width: wp(12), height: wp(12) }}
+                className="rounded-full"
+              />
+            </View>
+            <Text className="text-sm font-medium mt-2">{category.name}</Text>
+          </TouchableOpacity>
+        ))}
       </ScrollView>
     </View>
-  )
+  );
 }

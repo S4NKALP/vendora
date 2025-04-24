@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
 import { getFavorites, toggleFavorite } from '../api';
 import { useFocusEffect } from '@react-navigation/native';
 import { ChevronLeftIcon, HeartIcon } from 'react-native-heroicons/outline';
@@ -18,9 +18,10 @@ const WishlistScreen = ({ navigation }) => {
   const loadFavorites = async () => {
     try {
       const data = await getFavorites();
-      setFavorites(data);
+      setFavorites(data || []);
     } catch (error) {
       console.error('Error loading favorites:', error);
+      setFavorites([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -40,21 +41,25 @@ const WishlistScreen = ({ navigation }) => {
 
   const handleFavoriteToggle = async (product) => {
     try {
-      const updatedFavorites = await toggleFavorite(product);
-      setFavorites(updatedFavorites);
+      await toggleFavorite(product);
+      // Reload favorites after toggling
+      loadFavorites();
     } catch (error) {
       console.error('Error toggling favorite:', error);
     }
   };
 
+  // Ensure favorites is always an array
+  const safeFavorites = Array.isArray(favorites) ? favorites : [];
+  
   const filteredFavorites = activeCategory === "All" 
-    ? favorites 
-    : favorites.filter(item => item.category === activeCategory);
+    ? safeFavorites 
+    : safeFavorites.filter(item => item.product && item.product.category_name === activeCategory);
 
   if (loading && !refreshing) {
     return (
-      <View style={styles.container}>
-        <Text>Loading...</Text>
+      <View className="flex-1 justify-center items-center bg-white">
+        <ActivityIndicator size={45} color="#704f38" />
       </View>
     );
   }
@@ -129,17 +134,17 @@ const WishlistScreen = ({ navigation }) => {
               ]}
             >
               <TouchableOpacity 
-                onPress={() => navigation.navigate('ProductDetails', { product: item })}
+                onPress={() => navigation.navigate('ProductDetails', { id: item.product.id })}
                 style={styles.card}
               >
                 <View style={styles.imageContainer}>
                   <Image 
-                    source={{ uri: item.image }} 
+                    source={{ uri: item.product.image }} 
                     style={styles.image}
                   />
                   <TouchableOpacity 
                     style={styles.heartButton}
-                    onPress={() => handleFavoriteToggle(item)}
+                    onPress={() => handleFavoriteToggle(item.product)}
                   >
                     <Icon 
                       name="heart" 
@@ -149,12 +154,12 @@ const WishlistScreen = ({ navigation }) => {
                   </TouchableOpacity>
                 </View>
                 <View style={styles.detailsContainer}>
-                  <Text style={styles.title}>{item.title}</Text>
+                  <Text style={styles.title}>{item.product.name}</Text>
                   <View style={styles.priceRatingContainer}>
-                    <Text style={styles.price}>${item.price}</Text>
+                    <Text style={styles.price}>Rs {item.product.price}</Text>
                     <View style={styles.ratingContainer}>
                       <StarIcon size={16} color="#f5a623" />
-                      <Text style={styles.rating}>{item.rating}</Text>
+                      <Text style={styles.rating}>{item.product.average_rating || 0}</Text>
                     </View>
                   </View>
                 </View>

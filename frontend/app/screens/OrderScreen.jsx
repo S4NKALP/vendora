@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native'
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl } from 'react-native'
 import React, { useState, useEffect } from 'react'
 import TabBar from '../themes/TabBar'
 import { ChevronLeftIcon } from 'react-native-heroicons/outline'
@@ -6,7 +6,7 @@ import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-nat
 import ActiveOrder from '../components/ActiveOrder'
 import CompletedOrder from '../components/CompletedOrder'
 import CancelledOrder from '../components/CancelledOrder'
-import { useNavigation } from '@react-navigation/native'
+import { useNavigation, useFocusEffect } from '@react-navigation/native'
 import { getOrders } from '../api'
 
 export default function OrderScreen() {
@@ -14,12 +14,9 @@ export default function OrderScreen() {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [refreshing, setRefreshing] = useState(false);
     const orderState = ["active", "completed", "cancelled"];
     const [initialValue, setValue] = useState(0);
-
-    useEffect(() => {
-        fetchOrders();
-    }, []);
 
     // Process order data to ensure consistent structure
     const processOrderData = (orderData) => {
@@ -30,8 +27,8 @@ export default function OrderScreen() {
         
         return orderData.map(order => ({
             ...order,
-            // Normalize status to lowercase to avoid case-sensitivity issues
-            status: (order.status || '').toLowerCase(),
+            // Keep status as is (case-sensitive)
+            status: order.status || 'Pending',
             // Ensure items array exists
             items: Array.isArray(order.items) ? order.items : [],
             // Ensure order has an ID
@@ -54,8 +51,32 @@ export default function OrderScreen() {
         }
     };
 
+    // Initial fetch
+    useEffect(() => {
+        fetchOrders();
+    }, []);
+
+    // Refresh when screen is focused
+    useFocusEffect(
+        React.useCallback(() => {
+            fetchOrders();
+        }, [])
+    );
+
+    // Handle pull-to-refresh
+    const onRefresh = async () => {
+        setRefreshing(true);
+        try {
+            await fetchOrders();
+        } catch (error) {
+            console.error('Error refreshing orders:', error);
+        } finally {
+            setRefreshing(false);
+        }
+    };
+
     const renderOrderState = () => {
-        if (loading) {
+        if (loading && !refreshing) {
             return (
                 <View className="flex-1 justify-center items-center py-20">
                     <ActivityIndicator size="large" color="#704f38" />
@@ -79,16 +100,16 @@ export default function OrderScreen() {
 
         // Filter orders based on state
         const filteredOrders = orders.filter(order => {
-            const status = order.status.toLowerCase();
+            const status = order.status;
             if (initialValue === 0) {
-                // Active orders are pending, processing
-                return ['pending', 'processing'].includes(status);
+                // Active orders are pending, processing, and shipped
+                return ['Pending', 'Processing', 'Shipped'].includes(status);
             } else if (initialValue === 1) {
                 // Completed orders
-                return ['shipped', 'delivered'].includes(status);
+                return ['Delivered'].includes(status);
             } else {
                 // Cancelled orders
-                return status === 'cancelled';
+                return status === 'Cancelled';
             }
         });
 
@@ -154,7 +175,17 @@ export default function OrderScreen() {
                     }
                 </View>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView 
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        colors={["#704f38"]}
+                        tintColor="#704f38"
+                    />
+                }
+            >
                 {renderOrderState()}
             </ScrollView>
         </View>

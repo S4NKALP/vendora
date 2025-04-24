@@ -1,10 +1,12 @@
-import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native'
-import React from 'react'
+import { View, Text, Image, TouchableOpacity, ActivityIndicator, Alert } from 'react-native'
+import React, { useState } from 'react'
 import { useNavigation } from '@react-navigation/native'
+import { fetchProductById } from '../api'
 
 export default function ActiveOrder({ orders = [], navigation: propNavigation }) {
     // Use provided navigation prop if available, otherwise get from hook
     const navigation = propNavigation || useNavigation();
+    const [loading, setLoading] = useState(false);
 
     // Safe number formatting helper
     const formatCurrency = (value) => {
@@ -15,6 +17,48 @@ export default function ActiveOrder({ orders = [], navigation: propNavigation })
             return isNaN(num) ? '0.00' : num.toFixed(2);
         }
         return '0.00';
+    };
+
+    const handleReOrder = async (order) => {
+        console.log('Order data:', order);
+        
+        // Use order_items as primary source, fallback to items if order_items is empty
+        const orderItems = (order.order_items && order.order_items.length > 0) ? order.order_items : order.items;
+        console.log('Order items:', orderItems);
+        
+        if (!orderItems || orderItems.length === 0) {
+            Alert.alert('Error', 'No items found in this order');
+            return;
+        }
+        
+        try {
+            setLoading(true);
+            const firstItem = orderItems[0];
+            console.log('First item:', firstItem);
+            
+            const productId = firstItem.product || firstItem.product_id || firstItem.id;
+            console.log('Product ID:', productId);
+            
+            if (!productId) {
+                Alert.alert('Error', 'Could not find product ID');
+                return;
+            }
+
+            const product = await fetchProductById(productId);
+            console.log('Fetched product:', product);
+            
+            if (!product) {
+                Alert.alert('Error', 'Product not found');
+                return;
+            }
+
+            navigation.navigate('ProductDetails', { id: product.id });
+        } catch (error) {
+            console.error('Error in handleReOrder:', error);
+            Alert.alert('Error', 'Failed to load product details. Please try again.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     if (!orders || orders.length === 0) {
@@ -28,7 +72,7 @@ export default function ActiveOrder({ orders = [], navigation: propNavigation })
     return (
         <View className={`mx-4`}>
             {orders.map((order, index) => {
-                // Each order can have multiple items
+                const orderItems = (order.order_items && order.order_items.length > 0) ? order.order_items : order.items;
                 return (
                     <View key={index} className="mb-6 border rounded-lg border-gray-200 overflow-hidden">
                         <View className="bg-gray-100 p-3 border-b border-gray-200">
@@ -39,8 +83,8 @@ export default function ActiveOrder({ orders = [], navigation: propNavigation })
                             </Text>
                         </View>
 
-                        {order.items && order.items.map((item, itemIndex) => (
-                            <View key={itemIndex} className={`flex-row items-center gap-6 py-3 px-3 ${itemIndex < order.items.length - 1 ? 'border-b border-gray-200' : ''}`}>
+                        {orderItems && orderItems.map((item, itemIndex) => (
+                            <View key={itemIndex} className={`flex-row items-center gap-6 py-3 px-3 ${itemIndex < orderItems.length - 1 ? 'border-b border-gray-200' : ''}`}>
                                 <Image 
                                     source={{ uri: item.product_image || item.product?.image || 'https://via.placeholder.com/100' }} 
                                     className="size-[90px] rounded-lg"
@@ -58,12 +102,15 @@ export default function ActiveOrder({ orders = [], navigation: propNavigation })
 
                         <View className="bg-gray-50 p-3 border-t border-gray-200 flex-row justify-between items-center">
                             <Text className="font-bold">Total: ${formatCurrency(order.total_price || order.total_amount)}</Text>
-                            <TouchableOpacity 
-                                onPress={() => navigation.navigate('Track Order', { orderId: order.id })}
-                                className={`bg-primary rounded-full px-4 py-2`}
-                            >
-                                <Text className={`text-white font-medium`}>Track Order</Text>
-                            </TouchableOpacity>
+                            <View className="flex-row gap-2">
+                                <TouchableOpacity 
+                                    onPress={() => navigation.navigate('Track Order', { orderId: order.id })}
+                                    className={`bg-primary rounded-full px-4 py-2`}
+                                >
+                                    <Text className={`text-white font-medium`}>Track Order</Text>
+                                </TouchableOpacity>
+                                
+                            </View>
                         </View>
                     </View>
                 );

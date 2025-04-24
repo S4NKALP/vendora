@@ -12,7 +12,8 @@ import {
 } from '@gorhom/bottom-sheet';
 import { BackHandler, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { getUserData, logoutUser } from '../api';
+import { getUserData, logout, updateProfilePicture } from '../api';
+import * as ImagePicker from 'expo-image-picker';
 
 export default function ProfileScreen() {
     const navigation = useNavigation();
@@ -39,10 +40,10 @@ export default function ProfileScreen() {
         fetchUser();
     }, []);
 
-    const logout = async () => {
+    const handleLogout = async () => {
         try {
             setLoading(true);
-            await logoutUser();
+            await logout();
             navigation.navigate("SignIn");
         } catch (error) {
             Alert.alert('Logout Failed', 'Could not log out. Please try again.');
@@ -73,6 +74,60 @@ export default function ProfileScreen() {
 
         return () => backHandler.remove(); // Cleanup
     }, []);
+
+    const handleProfilePictureUpdate = async () => {
+        try {
+            // Request permission to access the camera roll
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== 'granted') {
+                Alert.alert(
+                    'Permission Required',
+                    'Please grant permission to access your photos to update your profile picture.',
+                    [{ text: 'OK' }]
+                );
+                return;
+            }
+
+            // Launch image picker
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.8,
+                base64: false,
+            });
+
+            if (!result.canceled && result.assets && result.assets[0]) {
+                setLoading(true);
+                try {
+                    // Update profile picture
+                    const updatedUser = await updateProfilePicture(result.assets[0].uri);
+                    setUserData(updatedUser);
+                    Alert.alert(
+                        'Success',
+                        'Profile picture updated successfully',
+                        [{ text: 'OK' }]
+                    );
+                } catch (error) {
+                    console.error('Error updating profile picture:', error);
+                    Alert.alert(
+                        'Error',
+                        'Failed to update profile picture. Please try again.',
+                        [{ text: 'OK' }]
+                    );
+                } finally {
+                    setLoading(false);
+                }
+            }
+        } catch (error) {
+            console.error('Error in image picker:', error);
+            Alert.alert(
+                'Error',
+                'Failed to access image picker. Please try again.',
+                [{ text: 'OK' }]
+            );
+        }
+    };
 
     if (loading) {
         return (
@@ -111,7 +166,7 @@ export default function ProfileScreen() {
         'User';
 
     return (
-        <GestureHandlerRootView>
+        <GestureHandlerRootView style={{ flex: 1, backgroundColor: 'white' }}>
             <View className={`bg-white `} style={{ height: hp('97%'), backgroundColor: 'white' }}>
                 <TabBar
                     prefix={""}
@@ -136,10 +191,28 @@ export default function ProfileScreen() {
                 <View className=" mx-4 mb-8 rounded-xl" >
                     <View className={`flex-row justify-center items-center`}>
                         <View className={`relative`}>
-                            <Image source={pic} className="size-[110px] rounded-full " />
-                            <View className={`absolute bottom-0 right-0 bg-primary border border-white rounded-full justify-center items-center`}>
-                                <PencilSquareIcon color={"white"} size={23} />
-                            </View>
+                            <TouchableOpacity onPress={handleProfilePictureUpdate}>
+                                <Image
+                                    source={userData?.profile_picture ? { uri: userData.profile_picture } : pic}
+                                    style={{
+                                        width: wp(30),
+                                        height: wp(30),
+                                        borderRadius: wp(15),
+                                        borderWidth: 2,
+                                        borderColor: '#704f38'
+                                    }}
+                                />
+                                <View style={{
+                                    position: 'absolute',
+                                    bottom: 0,
+                                    right: 0,
+                                    backgroundColor: '#704f38',
+                                    borderRadius: wp(4),
+                                    padding: wp(2)
+                                }}>
+                                    <PencilSquareIcon size={wp(5)} color="white" />
+                                </View>
+                            </TouchableOpacity>
                         </View>
                     </View>
                     <Text className={`text-center mt-3 font-bold text-xl`}>
@@ -262,7 +335,7 @@ export default function ProfileScreen() {
                                         <Text className={`font-medium`}>Cancel</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity 
-                                        onPress={logout} 
+                                        onPress={handleLogout} 
                                         disabled={loading}
                                         className={`flex-1 bg-primary border border-primary flex-row items-center justify-center py-3 rounded-full`}
                                     >

@@ -1,7 +1,8 @@
-import { TouchableOpacity, ActivityIndicator } from 'react-native'
-import React, { useState, useEffect } from 'react'
+import { TouchableOpacity } from 'react-native'
+import React from 'react'
+import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { HeartIcon } from 'react-native-heroicons/outline'
-import { HeartIcon as HeartSolid } from 'react-native-heroicons/solid'
+import { HeartIcon as SolidHeartIcon } from 'react-native-heroicons/solid'
 import { getFavorites } from '../api'
 
 /**
@@ -17,15 +18,7 @@ import { getFavorites } from '../api'
  * @param {number} props.productId The ID of the product
  * @returns {React.Component} Favorite button component
  */
-export default function FavoriteButton({ 
-  isFavorite = false,
-  onToggleFavorite,
-  size = 24,
-  activeColor = '#ff3b30',
-  inactiveColor = '#000000',
-  style = {},
-  productId
-}) {
+const FavoriteButton = ({ isFavorite, onToggleFavorite, size = 25, style, productId }) => {
   const [loading, setLoading] = useState(false);
   const [favoriteState, setFavoriteState] = useState(isFavorite);
 
@@ -70,16 +63,25 @@ export default function FavoriteButton({
     <TouchableOpacity
       onPress={handlePress}
       disabled={loading}
-      style={style}
-      className="justify-center items-center"
+      style={[
+        style,
+        {
+          width: wp('10%'),
+          height: wp('10%'),
+          justifyContent: 'center',
+          alignItems: 'center'
+        }
+      ]}
     >
       {loading ? (
-        <ActivityIndicator size="small" color={activeColor} />
+        <ActivityIndicator size="small" color="red" />
       ) : favoriteState ? (
-        <HeartSolid size={size} color={activeColor} />
+        <SolidHeartIcon size={wp('6%')} color="red" />
       ) : (
-        <HeartIcon size={size} color={inactiveColor} />
+        <HeartIcon size={wp('6%')} color="black" />
       )}
     </TouchableOpacity>
-  )
-} 
+  );
+}
+
+export default FavoriteButton; 

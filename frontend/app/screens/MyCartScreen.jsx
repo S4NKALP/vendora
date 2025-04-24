@@ -1,12 +1,13 @@
-import { View, Text, ScrollView, Image, TextInput, TouchableOpacity, Pressable, ActivityIndicator, Alert, RefreshControl } from 'react-native'
+import { View, Text, ScrollView, Image, TextInput, TouchableOpacity, Pressable, ActivityIndicator, Alert, RefreshControl, KeyboardAvoidingView, Platform } from 'react-native'
 import React, { useEffect, useState, useCallback } from 'react'
 import TabBar from '../themes/TabBar'
-import { ChevronLeftIcon, HeartIcon, MinusIcon, PlusIcon } from 'react-native-heroicons/outline'
+import { ChevronLeftIcon, HeartIcon, MinusIcon, PlusIcon, XMarkIcon } from 'react-native-heroicons/outline'
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { useNavigation, useFocusEffect } from '@react-navigation/native'
 import { deleteCartItem, getCart, updateCartItemQuantity, processImageUrl } from '../api'
 import EvIcons from "react-native-vector-icons/EvilIcons"
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useCart } from '../context/CartContext';
 
 export default function MyCartScreen() {
   const navigation = useNavigation();
@@ -16,6 +17,7 @@ export default function MyCartScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [promoCode, setPromoCode] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { cartTotal, appliedCoupon, couponDiscount, applyCoupon, removeCoupon, refreshCart } = useCart();
 
   // Check authentication status
   const checkAuth = async () => {
@@ -63,21 +65,33 @@ export default function MyCartScreen() {
         }
       }
 
+      // Get the price from the correct field
+      const price = typeof item.product_price === 'number' ? item.product_price :
+                   typeof item.price === 'number' ? item.price :
+                   parseFloat(item.product_price || item.price || 0);
+
+      // Calculate subtotal based on price and quantity
+      const quantity = parseInt(item.quantity || 1);
+      const subtotal = price * quantity;
+
       // Ensure all required properties exist
       return {
         id: item.id,
         product_id: item.product,
         product_name: item.product_name,
         product_image: processedImageUrl,
-        price: parseFloat(item.product_price || 0),
-        quantity: parseInt(item.quantity || 1),
-        subtotal: parseFloat(item.subtotal || 0)
+        price: price,
+        quantity: quantity,
+        subtotal: subtotal
       };
     }));
 
+    // Calculate total from processed items
+    const total = processedItems.reduce((sum, item) => sum + item.subtotal, 0);
+
     return {
       items: processedItems,
-      total: parseFloat(cartData.total || 0)
+      total: total
     };
   };
 
@@ -112,6 +126,13 @@ export default function MyCartScreen() {
   const handleUpdateQuantity = async (itemId, newQuantity) => {
     if (newQuantity < 1) return;
 
+    // Find the cart item to get the product ID
+    const cartItem = cartItems.find(item => item.id === itemId);
+    if (!cartItem) {
+      Alert.alert('Error', 'Cart item not found');
+      return;
+    }
+
     // Optimistic update
     setCartItems(prevItems =>
       prevItems.map(item =>
@@ -120,13 +141,43 @@ export default function MyCartScreen() {
     );
 
     try {
-      await updateCartItemQuantity(itemId, newQuantity);
+      await updateCartItemQuantity(cartItem.product, newQuantity);
       // Refresh cart data in background
       fetchCartData();
     } catch (error) {
       console.error('Error updating quantity:', error);
       // Revert optimistic update on error
       fetchCartData();
+      
+      // Handle different types of errors
+      if (error.message === 'Session expired. Please login again.') {
+        Alert.alert(
+          'Session Expired',
+          'Your session has expired. Please login again.',
+          [
+            {
+              text: 'OK',
+              onPress: () => navigation.navigate('SignIn')
+            }
+          ]
+        );
+      } else if (error.message === 'You do not have permission to update this cart item.') {
+        Alert.alert(
+          'Permission Error',
+          'You do not have permission to update this cart item. Please try again later.'
+        );
+      } else if (error.message === 'Cart item not found') {
+        Alert.alert(
+          'Error',
+          'This item is no longer in your cart. The cart will be refreshed.'
+        );
+        fetchCartData(); // Refresh the cart to get the current state
+      } else {
+        Alert.alert(
+          'Error',
+          'Failed to update quantity. Please try again.'
+        );
+      }
     }
   };
 
@@ -173,15 +224,47 @@ export default function MyCartScreen() {
     
     try {
       setLoading(true);
-      // This would normally call an API endpoint to apply the promo code
-      // For now, just show a message
-      Alert.alert('Success', 'Promo code applied successfully!');
-      setPromoCode('');
+      const result = await applyCoupon(promoCode);
+      
+      if (result.success) {
+        Alert.alert('Success', `Coupon applied! You saved ${result.discount.toFixed(2)}`);
+        setPromoCode('');
+      } else {
+        // Display the specific error message from the server
+        Alert.alert('Invalid Coupon', result.message || 'This coupon cannot be applied to your cart.');
+      }
     } catch (error) {
       console.error('Error applying promo code:', error);
-      Alert.alert('Error', error.message || 'Failed to apply promo code');
+      // Check if the error has a response with a message
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to apply promo code';
+      Alert.alert('Error', errorMessage);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRemoveCoupon = async () => {
+    try {
+      setLoading(true);
+      
+      // Remove the coupon from context
+      removeCoupon();
+      
+      // Clear the promo code input
+      setPromoCode('');
+      
+      // Fetch fresh cart data and wait for it to complete
+      await fetchCartData();
+      
+      // Force a refresh of the cart context
+      refreshCart();
+      
+      setLoading(false);
+      Alert.alert('Success', 'Coupon removed successfully');
+    } catch (error) {
+      console.error('Error removing coupon:', error);
+      setLoading(false);
+      Alert.alert('Error', 'Failed to remove coupon. Please try again.');
     }
   };
 
@@ -195,86 +278,92 @@ export default function MyCartScreen() {
     </View>
   );
 
-  const CartItem = ({ item, onUpdateQuantity, onDelete }) => {
-    const [imageError, setImageError] = useState(false);
-    const [imageLoading, setImageLoading] = useState(true);
-
-    // Use local fallback image if no image URL or error
-    const imageSource = !item.product_image || imageError 
-      ? require('../../assets/images/favicon.png')
-      : { uri: item.product_image, cache: 'force-cache' };
+  // Move CartItem outside of the main component and memoize it
+  const CartItem = React.memo(({ item, onUpdateQuantity, onDelete }) => {
+    // Calculate the price, ensuring it's a number
+    const price = typeof item.price === 'number' ? item.price : 
+                 typeof item.product_price === 'number' ? item.product_price :
+                 parseFloat(item.price || item.product_price || 0);
 
     return (
-      <View className="flex-row items-center p-4 border-b border-gray-200">
-        <View className="relative">
+      <View style={{ 
+        flexDirection: 'row', 
+        alignItems: 'center', 
+        padding: wp('4%'),
+        borderBottomWidth: 1,
+        borderBottomColor: '#e5e7eb'
+      }}>
+        <View style={{ position: 'relative' }}>
           <Image
-            source={imageSource}
+            source={{ uri: item.product_image }}
             style={{ 
-              width: 80, 
-              height: 80,
-              resizeMode: 'cover'
-            }}
-            className="rounded-lg"
-            onError={(e) => {
-              console.error('Error loading image for product:', item.product_image);
-              console.error('Error details:', e.nativeEvent);
-              setImageError(true);
-            }}
-            onLoadStart={() => {
-              if (item.product_image) {
-                console.log('Loading image:', item.product_image);
-                setImageLoading(true);
-              }
-            }}
-            onLoadEnd={() => {
-              if (item.product_image) {
-                console.log('Image loaded successfully:', item.product_image);
-                setImageLoading(false);
-              }
-            }}
-            onLoad={() => {
-              if (item.product_image) {
-                console.log('Image loaded and rendered:', item.product_image);
-                setImageLoading(false);
-              }
+              width: wp('20%'),
+              height: wp('20%'),
+              resizeMode: 'cover',
+              borderRadius: wp('2%')
             }}
           />
-          {imageLoading && item.product_image && (
-            <View className="absolute inset-0 justify-center items-center bg-gray-100 rounded-lg">
-              <ActivityIndicator size="small" color="#704f38" />
-            </View>
-          )}
         </View>
-        <View className="flex-1 ml-4">
-          <Text className="font-medium text-base" numberOfLines={2}>{item.product_name}</Text>
-          <Text className="text-gray-500 text-sm mt-1">
-            ${typeof item.price === 'number' ? item.price.toFixed(2) : '0.00'}
+        <View style={{ flex: 1, marginLeft: wp('4%') }}>
+          <Text style={{ 
+            fontWeight: '500', 
+            fontSize: wp('4%'),
+            marginBottom: hp('0.5%')
+          }} numberOfLines={2}>{item.product_name}</Text>
+          <Text style={{ 
+            color: '#6b7280', 
+            fontSize: wp('3.5%'),
+            marginTop: hp('0.5%')
+          }}>
+            Rs {price.toFixed(2)}
           </Text>
-          <View className="flex-row items-center mt-2">
+          <View style={{ 
+            flexDirection: 'row', 
+            alignItems: 'center', 
+            marginTop: hp('1%')
+          }}>
             <TouchableOpacity
               onPress={() => onUpdateQuantity(item.id, item.quantity - 1)}
-              className="bg-gray-200 p-2 rounded-full"
+              style={{
+                backgroundColor: '#e5e7eb',
+                padding: wp('2%'),
+                borderRadius: 9999
+              }}
             >
-              <MinusIcon size={16} color="black" />
+              <MinusIcon size={wp('4%')} color="black" />
             </TouchableOpacity>
-            <Text className="mx-4">{item.quantity}</Text>
+            <Text style={{ 
+              marginHorizontal: wp('4%'),
+              fontSize: wp('3.8%')
+            }}>{item.quantity}</Text>
             <TouchableOpacity
               onPress={() => onUpdateQuantity(item.id, item.quantity + 1)}
-              className="bg-gray-200 p-2 rounded-full"
+              style={{
+                backgroundColor: '#e5e7eb',
+                padding: wp('2%'),
+                borderRadius: 9999
+              }}
             >
-              <PlusIcon size={16} color="black" />
+              <PlusIcon size={wp('4%')} color="black" />
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => onDelete(item.id)}
-              className="ml-auto"
+              style={{ marginLeft: 'auto' }}
             >
-              <EvIcons name="trash" size={24} color="red" />
+              <EvIcons name="trash" size={wp('6%')} color="red" />
             </TouchableOpacity>
           </View>
         </View>
       </View>
     );
-  };
+  }, (prevProps, nextProps) => {
+    // Only re-render if these props change
+    return (
+      prevProps.item.id === nextProps.item.id &&
+      prevProps.item.quantity === nextProps.item.quantity &&
+      prevProps.item.product_image === nextProps.item.product_image
+    );
+  });
 
   if (loading && !refreshing) {
     return (
@@ -313,14 +402,18 @@ export default function MyCartScreen() {
     return total + (isNaN(itemSubtotal) ? 0 : itemSubtotal);
   }, 0);
   const discount = (subtotal * discountPercentage) / 100;
-  const totalCost = subtotal + deliveryFee - discount;
+  const totalCost = subtotal + deliveryFee - discount - couponDiscount;
 
   return (
-    <View className="bg-white flex-col " style={{ height: hp('97%') }} >
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      className="flex-1 bg-white"
+      keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
+    >
       <TabBar
         prefix={""}
         title={"My Cart"}
-        suffix={<ChevronLeftIcon size={25} color={'black'} />}
+        suffix={<ChevronLeftIcon size={wp('6%')} color={'black'} />}
         titleStyle={{
           color: "black",
           fontWeight: "bold",
@@ -348,12 +441,21 @@ export default function MyCartScreen() {
 
       {!cartItems || cartItems.length === 0 ? (
         <View className="flex-1 justify-center items-center">
-          <Text className="text-xl text-gray-500">Your cart is empty</Text>
-          <TouchableOpacity 
-            onPress={() => navigation.navigate('Home')}
-            className="mt-4 bg-primary py-2 px-4 rounded-lg"
+          <Text style={{ fontSize: wp('5%'), color: '#6b7280' }}>Your cart is empty</Text>
+          <TouchableOpacity
+            onPress={() => {
+              // Navigate to Main (BottomTabBar) and then to Home tab
+              navigation.goBack();
+            }}
+            style={{
+              marginTop: hp('2%'),
+              backgroundColor: '#704f38',
+              paddingVertical: hp('1%'),
+              paddingHorizontal: wp('4%'),
+              borderRadius: wp('2%')
+            }}
           >
-            <Text className="text-white">Continue Shopping</Text>
+            <Text style={{ color: 'white', fontSize: wp('4%') }}>Continue Shopping</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -368,6 +470,7 @@ export default function MyCartScreen() {
                 tintColor="#704f38"
               />
             }
+            className="flex-1"
           >
             {cartItems.map((item, index) => (
               <CartItem
@@ -377,50 +480,84 @@ export default function MyCartScreen() {
                 onDelete={handleDeleteItem}
               />
             ))}
-          </ScrollView>
+            
+            <View className="p-4">
+              <Text className="text-lg font-bold mb-2">Promo Code</Text>
+              <View className="flex-row items-center">
+                <TextInput
+                  className="flex-1 border border-gray-300 rounded-lg p-3 mr-2"
+                  placeholder="Enter promo code"
+                  value={promoCode}
+                  onChangeText={setPromoCode}
+                  editable={!appliedCoupon}
+                />
+                <TouchableOpacity 
+                  className="bg-primary p-3 rounded-lg"
+                  onPress={handleApplyPromoCode}
+                  disabled={!!loading || !!appliedCoupon}
+                >
+                  <Text className="text-white font-bold">Apply</Text>
+                </TouchableOpacity>
+              </View>
+              {appliedCoupon && (
+                <View className="mt-2">
+                  <View className="bg-green-100 p-2 rounded-lg mb-2">
+                    <Text className="text-green-800">
+                      Coupon "{appliedCoupon.code}" applied! You saved {couponDiscount.toFixed(2)}
+                    </Text>
+                  </View>
+                  <TouchableOpacity 
+                    onPress={handleRemoveCoupon}
+                    className="bg-red-500 p-2 rounded-lg"
+                  >
+                    <Text className="text-white text-center font-bold">Remove Coupon</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
 
-          <View className="bg-white py-5 px-4 rounded-tl-2xl">
-            <View className="border rounded-full flex-row overflow-hidden p-2 pl-6">
-              <TextInput 
-                placeholder='Promo Code' 
-                className="text-lg flex-1" 
-                value={promoCode}
-                onChangeText={setPromoCode}
-              />
+            <View className="p-4 bg-gray-50 mx-4 rounded-lg mb-4">
+              <Text className="text-lg font-bold mb-4">Order Summary</Text>
+              
+              <View className="flex-row justify-between mb-2">
+                <Text className="text-gray-600">Subtotal</Text>
+                <Text>Rs {subtotal.toFixed(2)}</Text>
+              </View>
+              
+              <View className="flex-row justify-between mb-2">
+                <Text className="text-gray-600">Delivery Fee</Text>
+                <Text>Rs {deliveryFee.toFixed(2)}</Text>
+              </View>
+              
+              <View className="flex-row justify-between mb-2">
+                <Text className="text-gray-600">Discount</Text>
+                <Text className="text-green-600">- Rs {discount.toFixed(2)}</Text>
+              </View>
+              
+              {couponDiscount > 0 && (
+                <View className="flex-row justify-between mb-2">
+                  <Text className="text-gray-600">Coupon Discount</Text>
+                  <Text className="text-green-600">- Rs {couponDiscount.toFixed(2)}</Text>
+                </View>
+              )}
+              
+              <View className="h-0.5 bg-gray-300 my-2" />
+              
+              <View className="flex-row justify-between mb-4">
+                <Text className="font-bold">Total</Text>
+                <Text className="font-bold">Rs {totalCost.toFixed(2)}</Text>
+              </View>
+              
               <TouchableOpacity 
-                className="bg-primary rounded-full px-6 items-center flex-row"
-                onPress={handleApplyPromoCode}
+                className="bg-primary py-3 rounded-lg"
+                onPress={handleCheckout}
               >
-                <Text className="text-white font-bold">Apply</Text>
+                <Text className="text-white text-center font-bold">Proceed to Checkout</Text>
               </TouchableOpacity>
             </View>
-            <View className="flex-row justify-between items-center mt-4">
-              <Text>Sub-Total</Text>
-              <Text>${subtotal.toFixed(2)}</Text>
-            </View>
-            <View className="flex-row justify-between items-center mt-4">
-              <Text>Delivery fee</Text>
-              <Text>${deliveryFee.toFixed(2)}</Text>
-            </View>
-            <View className="flex-row justify-between items-center mt-4">
-              <Text>Discount</Text>
-              <Text>{discountPercentage}% (${discount.toFixed(2)})</Text>
-            </View>
-            <View className="border border-dashed mt-4" />
-            <View className="flex-row justify-between items-center mt-4">
-              <Text>Total Cost</Text>
-              <Text>${totalCost.toFixed(2)}</Text>
-            </View>
-            <TouchableOpacity 
-              onPress={handleCheckout} 
-              className="border rounded-full bg-primary flex-row justify-center items-center mb-3"
-              style={{ height: hp('5%') }}
-            >
-              <Text className="text-white text-lg font-semibold">Proceed To Checkout</Text>
-            </TouchableOpacity>
-          </View>
+          </ScrollView>
         </>
       )}
-    </View>
+    </KeyboardAvoidingView>
   );
 }

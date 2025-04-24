@@ -1,15 +1,5 @@
 // mock-api.js
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { View, Text } from 'react-native';
-
-// Dummy component to fix Expo Router error
-export default function ApiIndex() {
-  return (
-    <View style={{ display: 'none' }}>
-      <Text>API Service - This component is only to prevent Expo Router errors</Text>
-    </View>
-  );
-}
 
 // Mock product data
 const mockProducts = [
@@ -98,7 +88,6 @@ const mockUsers = [
   }
 ];
 
-// Add delay to simulate network request
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Helper to simulate authentication in mock API
@@ -224,13 +213,27 @@ export const deleteCartItem = async (productId) => {
     await checkAuthentication();
     
     const cartData = await AsyncStorage.getItem('cart');
-    let cart = cartData ? JSON.parse(cartData) : { data: [], totalPrice: 0 };
+    if (!cartData) {
+      return { data: [], totalPrice: 0 };
+    }
+    
+    let cart = JSON.parse(cartData);
+    
+    // Make sure cart has the expected structure
+    if (!cart.data) {
+      cart = { data: [], totalPrice: 0 };
+    }
 
+    // Filter out the item to be deleted
     cart.data = cart.data.filter(item => item.id !== productId);
-    cart.totalPrice = cart.data.reduce((sum, item) => sum + item.totalPrice, 0);
+    
+    // Recalculate total price
+    cart.totalPrice = cart.data.reduce((sum, item) => sum + (item.totalPrice || 0), 0);
 
+    // Save updated cart to AsyncStorage
     await AsyncStorage.setItem('cart', JSON.stringify(cart));
-    await delay(200);
+    
+    await delay(200); // Simulate network delay
     return cart;
   } catch (error) {
     console.error('Error deleting item from cart:', error);
@@ -525,3 +528,65 @@ export const fetchProducts = async (searchTerm) => {
     throw error;
   }
 };
+
+export const getInviteMessage = async () => {
+  return {
+    message: "Hey! I've been shopping on this Shopping App and it's been amazing! They have awesome deals, fast delivery, and quality products. Use my link to sign up and get a special discount on your first order!",
+    link: "https://play.google.com/store/apps/details?id=com.vendora.app"
+  };
+};
+
+// Mock slider data
+const mockSliders = [
+  {
+    id: 1,
+    title: "new collection",
+    description: "Discount 50% for the first transaction.",
+    image: "http://example.com/slider1.jpg",
+    is_active: true
+  },
+  {
+    id: 2,
+    title: "kids collection",
+    description: "Discount 50% for the first transaction.",
+    image: "http://example.com/slider2.jpg",
+    is_active: true
+  },
+  {
+    id: 3,
+    title: "traditional collection",
+    description: "Discount 50% for the first transaction.",
+    image: "http://example.com/slider3.jpg",
+    is_active: true
+  }
+];
+
+const api = {
+  fetchPosts,
+  fetchPostsById,
+  fetchCarts,
+  createCarts,
+  getCart,
+  deleteCartItem,
+  loginUser,
+  logoutUser,
+  getCurrentUser,
+  checkIsFavoriteForCurrentUser,
+  toggleFavoriteForCurrentUser,
+  getUserFavorites,
+  getUserRecentSearches,
+  saveUserRecentSearch,
+  removeUserRecentSearch,
+  clearAllUserRecentSearches,
+  getFavorites,
+  toggleFavorite,
+  isProductFavorited,
+  getUserData,
+  fetchProducts,
+  getInviteMessage
+};
+
+export default api;
+
+
+

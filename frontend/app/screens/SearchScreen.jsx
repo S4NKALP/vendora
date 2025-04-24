@@ -1,4 +1,4 @@
-import { View, Text, TextInput, ScrollView, TouchableOpacity, ActivityIndicator, Image } from 'react-native'
+import { View, Text, TextInput, ScrollView, TouchableOpacity, ActivityIndicator, Image, Alert } from 'react-native'
 import React, { useState, useEffect } from 'react'
 import TabBar from '../themes/TabBar'
 import { ChevronLeftIcon, MagnifyingGlassIcon, XMarkIcon } from 'react-native-heroicons/outline'
@@ -30,23 +30,29 @@ const SearchScreen = () => {
     }, []);
 
     const loadCurrentUser = async () => {
-        const currentUser = await getCurrentUser();
-        setUser(currentUser);
+        try {
+            const currentUser = await getCurrentUser();
+            setUser(currentUser);
+        } catch (error) {
+            console.error('Error loading current user:', error);
+        }
     };
 
     const loadRecentSearches = async () => {
         try {
             const searches = await getUserRecentSearches();
-            setRecentSearches(searches);
+            setRecentSearches(Array.isArray(searches) ? searches : []);
         } catch (error) {
             console.error('Error loading recent searches:', error);
+            setRecentSearches([]);
         }
     };
 
     const handleClearRecentSearch = async (term) => {
         try {
+            if (!term) return;
             const updatedSearches = await removeUserRecentSearch(term);
-            setRecentSearches(updatedSearches);
+            setRecentSearches(Array.isArray(updatedSearches) ? updatedSearches : []);
         } catch (error) {
             console.error('Error clearing recent search:', error);
         }
@@ -62,17 +68,20 @@ const SearchScreen = () => {
     };
 
     const handleSearch = async (searchTerm = searchText) => {
-        if (!searchTerm.trim()) return;
+        if (!searchTerm || !searchTerm.trim()) return;
         
         setLoading(true);
         setErrorMsg('');
         
         try {
-            const result = await fetchProducts({ search: searchTerm });
+            const result = await fetchProducts(searchTerm);
             setProducts(result);
             
             // Save to recent searches
             await saveUserRecentSearch(searchTerm);
+            
+            // Refresh recent searches
+            loadRecentSearches();
             
             navigation.navigate('SearchResult', { 
                 products: result,
@@ -87,6 +96,7 @@ const SearchScreen = () => {
     };
 
     const handleRecentSearchPress = (term) => {
+        if (!term) return;
         setSearchText(term);
         handleSearch(term);
     };
@@ -122,7 +132,7 @@ const SearchScreen = () => {
                             className="font-medium flex-1 h-full" 
                             value={searchText}
                             onChangeText={setSearchText}
-                            onSubmitEditing={handleSearch}
+                            onSubmitEditing={() => handleSearch()}
                             returnKeyType="search"
                             autoFocus
                         />

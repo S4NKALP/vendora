@@ -2,23 +2,27 @@
 // demoData  //camel case   ex:iAmAGoodBBoy
 // demo_data  // snake case ex:i_am_a_good_boy
 
-import { View, Text, ScrollView, TouchableOpacity, Image } from 'react-native'
-import React, { useEffect, useState } from 'react'
+import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native'
+import React, { useEffect, useState, forwardRef } from 'react'
 import MasonryList from '@react-native-seoul/masonry-list';
-import flashSalesData from '../constants/flashSalesData';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { StarIcon } from 'react-native-heroicons/solid';
 import { HeartIcon } from 'react-native-heroicons/outline';
+import { HeartIcon as SolidHeartIcon } from 'react-native-heroicons/solid';
 import Icon from "react-native-vector-icons/FontAwesome"
 import { useNavigation } from '@react-navigation/native';
-import { getFavorites, toggleFavorite } from '../api';
+import { getFavorites, toggleFavorite, fetchProducts } from '../api';
+import TabBar from '../themes/TabBar'
+import { ArrowLeftIcon, ChevronLeftIcon } from 'react-native-heroicons/outline'
 
-const FlashSales = ({data}) => {
+const FlashSales = forwardRef((props, ref) => {
   const navigation = useNavigation()
   const saleEnd = "2024-12-20T23:45:30";
   const [endDate, setEndDate] = useState(calenderLastDate(saleEnd))
   const [favorites, setFavorites] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [products, setProducts] = useState([]);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -31,21 +35,28 @@ const FlashSales = ({data}) => {
     return () => clearInterval(timer)
   }, [saleEnd])
 
-  // Load favorites when component mounts
+  // Load products and favorites when component mounts
   useEffect(() => {
-    const loadFavorites = async () => {
+    const loadData = async () => {
       try {
         setLoading(true);
-        const favoriteProducts = await getFavorites();
+        const [productsData, favoriteProducts] = await Promise.all([
+          fetchProducts(),
+          getFavorites()
+        ]);
+        setProducts(productsData || []);
         setFavorites(favoriteProducts || []);
+        setError(null);
       } catch (error) {
-        console.error('Error loading favorites:', error);
+        console.error('Error loading data:', error);
+        setError('Failed to load products');
+        setProducts([]);
         setFavorites([]);
       } finally {
         setLoading(false);
       }
     };
-    loadFavorites();
+    loadData();
   }, []);
 
   //Category toggle
@@ -56,8 +67,13 @@ const FlashSales = ({data}) => {
     setActiveSet(item)
   }
 
-  const handleFavouriteToggle = async (product) => {
+  const handleFavouriteToggle = async (productId) => {
     try {
+      const product = products.find(p => p.id === productId);
+      if (!product) {
+        console.error('Product not found:', productId);
+        return;
+      }
       const updatedFavorites = await toggleFavorite(product);
       setFavorites(updatedFavorites || []);
     } catch (error) {
@@ -66,20 +82,60 @@ const FlashSales = ({data}) => {
   };
 
   const isProductFavorited = (productId) => {
-    if (!Array.isArray(favorites)) return false;
     return favorites.some(fav => fav.id === productId);
+  };
+
+  const navigateToProductDetails = (productId) => {
+    navigation.navigate('ProductDetails', { id: productId });
   };
 
   if (loading) {
     return (
-      <View className="flex-1 justify-center items-center">
-        <Text>Loading...</Text>
+      <View className="flex-1 justify-center items-center bg-white">
+        <ActivityIndicator size="large" color="#704f38" />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View className="flex-1 justify-center items-center bg-white">
+        <Text className="text-red-500 text-lg">{error}</Text>
+        <TouchableOpacity 
+          onPress={() => {
+            setLoading(true);
+            fetchProducts()
+              .then(data => {
+                setProducts(data);
+                setError(null);
+              })
+              .catch(err => setError(err.message || 'Failed to fetch products'))
+              .finally(() => setLoading(false));
+          }}
+          className="mt-4 bg-primary py-2 px-4 rounded-lg"
+        >
+          <Text className="text-white">Retry</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
   return (
-    <View>
+    <ScrollView ref={ref} className="bg-white">
+      <TabBar
+        prefix={""}
+        title={"Flash Sales"}
+        titleStyle={{
+          color: "black",
+          fontWeight: "bold",
+          fontSize: 20
+        }}
+        prefixStyle={{
+          backgroundColor: "transparent"
+        }}
+        
+      />
+
       <View className="flex-row justify-between items-center px-1 mx-4 mb-4">
         <Text className="text-xl font-semibold">FlashSales</Text>
         {
@@ -122,25 +178,31 @@ const FlashSales = ({data}) => {
           })
         }
       </ScrollView>
-      <MasonryList
-        data={data}
-        keyExtractor={(item) => item.id}
-        numColumns={2}
-        showsVerticalScrollIndicator={false}
-        renderItem={({ item, index }) => (
-          <CardItem 
-            item={item} 
-            index={index} 
-            handleFavouriteToggle={() => handleFavouriteToggle(item)} 
-            isFavourite={isProductFavorited(item.id)} 
-            navigation={navigation} 
-          />
-        )}
-        className="mx-4"
-      />
-    </View>
+      {products.length === 0 ? (
+        <View className="items-center justify-center py-20">
+          <Text className="text-lg text-gray-500">No products available</Text>
+        </View>
+      ) : (
+        <MasonryList
+          data={products}
+          keyExtractor={(item) => item.id.toString()}
+          numColumns={2}
+          showsVerticalScrollIndicator={false}
+          renderItem={({ item, index }) => (
+            <CardItem 
+              item={item} 
+              index={index} 
+              handleFavouriteToggle={() => handleFavouriteToggle(item.id)} 
+              isFavourite={isProductFavorited(item.id)} 
+              onProductPress={() => navigateToProductDetails(item.id)}
+            />
+          )}
+          className="mx-4"
+        />
+      )}
+    </ScrollView>
   )
-}
+})
 
 const calenderLastDate = (saleEnd) => {
   const nowDate = new Date();
@@ -161,7 +223,8 @@ const calenderLastDate = (saleEnd) => {
   }
 }
 
-const CardItem = ({ item, index, handleFavouriteToggle, isFavourite, navigation }) => {
+const CardItem = ({ item, index, handleFavouriteToggle, isFavourite, onProductPress }) => {
+  const navigation = useNavigation();
   let isEven = item.id % 2 == 0
   
   const getRating = () => {
@@ -183,7 +246,7 @@ const CardItem = ({ item, index, handleFavouriteToggle, isFavourite, navigation 
   
   return (
     <View className={`${isEven ? "pl-4" : " pr-4"} flex-col gap-3 mb-4`}>
-      <TouchableOpacity onPress={() => { navigation.navigate('ProductDetails',{id:item.id,}) }} className="relative">
+      <TouchableOpacity onPress={onProductPress} className="relative">
         <Image source={{ uri: item.image }} height={hp(20)} className=" object-cover rounded-3xl" />
         <TouchableOpacity 
           onPress={(e) => {
@@ -192,12 +255,11 @@ const CardItem = ({ item, index, handleFavouriteToggle, isFavourite, navigation 
           }} 
           className="absolute right-4 top-4 bg-white/50 p-2 rounded-full"
         >
-          {
-            isFavourite ?
-              <Icon name='heart' size={16} color={"red"} />
-              :
-              <HeartIcon size={20} color={"white"} />
-          }
+          {isFavourite ? (
+            <SolidHeartIcon size={20} color="red" />
+          ) : (
+            <HeartIcon size={20} color="black" />
+          )}
         </TouchableOpacity>
       </TouchableOpacity>
       <View className="flex-row justify-between px-1">

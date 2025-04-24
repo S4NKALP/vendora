@@ -1,8 +1,8 @@
-import { View, Text, TextInput, TouchableOpacity, Image, ActivityIndicator, ScrollView } from 'react-native'
+import { View, Text, TextInput, TouchableOpacity, Image, ActivityIndicator, ScrollView, Modal } from 'react-native'
 import React, { useState } from 'react'
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
-import { EyeIcon, EyeSlashIcon } from 'react-native-heroicons/outline';
-import { registerUser } from '../api';
+import { EyeIcon, EyeSlashIcon, ChevronDownIcon } from 'react-native-heroicons/outline';
+import { register } from '../api';
 import { useNavigation } from '@react-navigation/native';
 
 export default function RegisterScreen() {
@@ -16,14 +16,22 @@ export default function RegisterScreen() {
         first_name: "",
         last_name: "",
         phone: "",
-        address: ""
+        address: "",
+        gender: ""
     });
     
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [showGenderPicker, setShowGenderPicker] = useState(false);
     
+    const genderOptions = [
+        { label: 'Male', value: 'Male' },
+        { label: 'Female', value: 'Female' },
+        { label: 'Other', value: 'Other' }
+    ];
+
     const validateForm = () => {
         if (!formData.username.trim()) {
             setError('Username is required');
@@ -60,6 +68,11 @@ export default function RegisterScreen() {
             setError('First and last name are required');
             return false;
         }
+
+        if (!formData.gender) {
+            setError('Gender is required');
+            return false;
+        }
         
         return true;
     };
@@ -71,6 +84,14 @@ export default function RegisterScreen() {
         }));
         
         if (error) setError(null);
+    };
+    
+    const handleGenderSelect = (gender) => {
+        setFormData(prev => ({
+            ...prev,
+            gender: gender.value
+        }));
+        setShowGenderPicker(false);
     };
     
     const handleRegister = async () => {
@@ -93,11 +114,20 @@ export default function RegisterScreen() {
                 first_name: formData.first_name,
                 last_name: formData.last_name,
                 phone: formData.phone || null,
-                address: formData.address || ""
+                address: formData.address || "",
+                gender: formData.gender
             };
             
-            const response = await registerUser(userData);
-            navigation.navigate("SignIn");
+            const response = await register(userData);
+            
+            // If registration is successful, navigate to the appropriate screen
+            if (response && response.token) {
+                // Registration successful, navigate to sign in
+                navigation.navigate("SignIn");
+            } else {
+                // Registration successful but no token, navigate to sign in
+                navigation.navigate("SignIn");
+            }
         } catch (error) {
             // Handle different error types
             if (error.response) {
@@ -211,6 +241,47 @@ export default function RegisterScreen() {
                     />
                 </View>
             </View>
+
+            <View className="mx-4 mt-3">
+                <Text className="font-semibold">Gender</Text>
+                <TouchableOpacity 
+                    onPress={() => setShowGenderPicker(true)}
+                    className={`border ${error && !formData.gender ? 'border-red-500' : 'border-gray-300'} rounded-full p-2 mt-2 flex-row justify-between items-center`}
+                >
+                    <Text className={`${formData.gender ? 'text-black' : 'text-gray-400'}`}>
+                        {formData.gender ? genderOptions.find(g => g.value === formData.gender)?.label : 'Select gender'}
+                    </Text>
+                    <ChevronDownIcon size={20} color="black" />
+                </TouchableOpacity>
+            </View>
+
+            <Modal
+                visible={showGenderPicker}
+                transparent={true}
+                animationType="slide"
+            >
+                <View className="flex-1 justify-end bg-black/50">
+                    <View className="bg-white rounded-t-3xl p-4">
+                        <View className="flex-row justify-between items-center mb-4">
+                            <Text className="text-xl font-bold">Select Gender</Text>
+                            <TouchableOpacity onPress={() => setShowGenderPicker(false)}>
+                                <Text className="text-primary">Cancel</Text>
+                            </TouchableOpacity>
+                        </View>
+                        {genderOptions.map((option) => (
+                            <TouchableOpacity
+                                key={option.value}
+                                onPress={() => handleGenderSelect(option)}
+                                className="py-3 border-b border-gray-200"
+                            >
+                                <Text className={`text-lg ${formData.gender === option.value ? 'text-primary font-semibold' : ''}`}>
+                                    {option.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
+            </Modal>
 
             <View className="mx-4 mt-3">
                 <Text className="font-semibold">Password</Text>

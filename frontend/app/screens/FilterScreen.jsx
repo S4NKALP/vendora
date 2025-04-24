@@ -1,15 +1,17 @@
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native'
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { ChevronLeftIcon } from 'react-native-heroicons/outline'
 import TabBar from '../themes/TabBar'
 import { StarIcon } from 'react-native-heroicons/solid'
 import { widthPercentageToDP as wp, heightPercentageToDP as hp, heightPercentageToDP } from 'react-native-responsive-screen';
 import MultiSlider from '@ptomasroos/react-native-multi-slider'
-import { useNavigation } from '@react-navigation/native'
-
+import { useNavigation, useRoute } from '@react-navigation/native'
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function FilterScreen() {
     const navigation = useNavigation()
+    const route = useRoute()
+    const { activeFilters } = route.params || {};
 
     const brand = ["all", "adidas", "nike", "puma", "gucci", "parada", "ogiy", "reebook"]
     const [brandActive, setbrandActive] = useState(0)
@@ -27,6 +29,67 @@ export default function FilterScreen() {
     const handleRangeValue = (values) => {
         setRange(values)
     }
+
+    // Initialize filters from activeFilters if available
+    useEffect(() => {
+        if (activeFilters) {
+            // Set brand filter
+            if (activeFilters.brand) {
+                const brandIndex = brand.findIndex(b => b.toLowerCase() === activeFilters.brand.toLowerCase());
+                if (brandIndex !== -1) setbrandActive(brandIndex);
+            }
+            
+            // Set gender filter
+            if (activeFilters.gender) {
+                const genderIndex = gender.findIndex(g => g.toLowerCase() === activeFilters.gender.toLowerCase());
+                if (genderIndex !== -1) setgenderActive(genderIndex);
+            }
+            
+            // Set sort by filter
+            if (activeFilters.sortBy) {
+                const sortIndex = sortBy.findIndex(s => s === activeFilters.sortBy);
+                if (sortIndex !== -1) setsortByActive(sortIndex);
+            }
+            
+            // Set review filter
+            if (activeFilters.subReview) {
+                const reviewIndex = subReview.findIndex(r => r === activeFilters.subReview);
+                if (reviewIndex !== -1) setsubReview(reviewIndex);
+            }
+            
+            // Set price range
+            if (activeFilters.range) {
+                setRange(activeFilters.range);
+            }
+        }
+    }, [activeFilters]);
+
+    const handleReset = () => {
+        setbrandActive(0);
+        setgenderActive(0);
+        setsortByActive(0);
+        setsubReview(0);
+        setRange([10, 2000]);
+    };
+
+    const handleApply = async () => {
+        // Save filter settings to AsyncStorage
+        const filterSettings = {
+            brand: brand[brandActive],
+            gender: gender[genderActive],
+            sortBy: sortBy[sortByActive],
+            subReview: subReview[subReviewActive]
+        };
+        
+        try {
+            await AsyncStorage.setItem('filterSettings', JSON.stringify(filterSettings));
+            // Navigate back to HomeScreen
+            navigation.goBack();
+        } catch (error) {
+            console.error('Error saving filter settings:', error);
+            navigation.goBack();
+        }
+    };
 
     return (
         <View className={`bg-white flex-col`} style={{ height: hp('98%') }}>
@@ -134,55 +197,6 @@ export default function FilterScreen() {
                         }
                     </ScrollView>
                 </View>
-                <View className={`mx-4 mb-5 `}>
-                    <Text className={`font-semibold text-2xl pb-4`}>Pricing Range : <Text className={`text-xl`}>Rs {range[0]} to Rs {range[1]}</Text></Text>
-                    <View className={`flex-col items-center`}>
-                        <MultiSlider
-                            values={range}
-                            min={0}
-                            max={range[1]}
-                            step={30}
-                            onValuesChange={handleRangeValue}
-                            selectedStyle={{
-                                backgroundColor: "#704f38"
-                            }}
-                            unselectedStyle={{
-                                backgroundColor: "#eee5d8",
-                                borderRadius: 4,
-                            }}
-                            trackStyle={{
-                                height: 8,
-                            }}
-                            markerStyle={{
-                                backgroundColor: '#704f38',
-                                height: 20,
-                                width: 20,
-                                borderRadius: 10,
-                                marginTop: 6,
-                                borderWidth: 2,
-                                borderColor: 'white'
-                            }}
-                        />
-                        {/* Indicator below tthe slider*/}
-                        <View className={`flex-row justify-between w-4/5`}>
-                            {
-                                Array.from({ length: 6 }, (_, index) => {
-                                    // Calculate the value dynamically within the range
-                                    const min = 10;
-                                    const max = range[2000];
-                                    const step = (max - min) / 5; // 5 steps for 6 values
-                                    const value = Math.round(min + index * step);
-
-                                    return (
-                                        <Text key={index} className={`text-sm text-gray-500`}>
-                                            Rs {value}
-                                        </Text>
-                                    )
-                                })
-                            }
-                        </View>
-                    </View>
-                </View>
                 <View className={`ml-4 `}>
                     <Text className={`font-semibold text-2xl pb-4`}>Reveiws</Text>
                 </View>
@@ -223,12 +237,18 @@ export default function FilterScreen() {
             </ScrollView>
 
             <View className={`bg-white py-6 px-4 rounded-l-2xl border border-gray-300 rounded-r-2xl flex-row justify-between items-center gap-3 `}>
-                <View className={` rounded-full bg-gray-300 flex-row justify-center items-center py-3 flex-1 `} >
+                <TouchableOpacity 
+                    onPress={handleReset}
+                    className={` rounded-full bg-gray-300 flex-row justify-center items-center py-3 flex-1 `} 
+                >
                     <Text className={`text-primary text-lg font-bold`}>Reset Filter</Text>
-                </View>
-                <View className={` rounded-full bg-primary flex-row justify-center items-center py-3 flex-1`} >
+                </TouchableOpacity>
+                <TouchableOpacity 
+                    onPress={handleApply}
+                    className={` rounded-full bg-primary flex-row justify-center items-center py-3 flex-1`} 
+                >
                     <Text className={`text-white text-lg font-bold`}>Apply</Text>
-                </View>
+                </TouchableOpacity>
             </View>
         </View>
     )
