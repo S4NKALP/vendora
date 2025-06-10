@@ -2,7 +2,7 @@
   <h1>Vendora</h1>
   <p>A modern e-commerce platform built with React Native and Django REST Framework</p>
 <figure>
-  <img src= "assets/img.png" alt="keycodex Demo" width="100px" height="100px">
+  <img src= "assets/img.png" alt="keycodex Demo" width="auto" height="200px">
   <br/>
   <figcaption>vendora</figcaption>
 </figure>
