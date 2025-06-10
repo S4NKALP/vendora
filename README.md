@@ -1,6 +1,12 @@
-# Vendora - E-Commerce Platform
-
-Vendora is a modern e-commerce platform built with React Native (Expo) for the frontend and Django REST Framework for the backend.
+<div align="center">
+  <h1>Vendora</h1>
+  <p>A modern e-commerce platform built with React Native and Django REST Framework</p>
+<figure>
+  <img src= "assets/img.png" alt="keycodex Demo">
+  <br/>
+  <figcaption>vendora</figcaption>
+</figure>
+</div>
 
 ## Project Overview
 
@@ -16,6 +22,7 @@ This full-stack e-commerce application offers:
 ## Tech Stack
 
 ### Frontend
+
 - React Native (Expo)
 - TypeScript
 - TailwindCSS/NativeWind for styling
@@ -23,6 +30,7 @@ This full-stack e-commerce application offers:
 - Axios for API calls
 
 ### Backend
+
 - Django
 - Django REST Framework
 - SQLite (development)
@@ -40,16 +48,19 @@ The project is organized into two main directories:
 ### Backend Setup
 
 1. Navigate to the backend directory:
+
    ```
    cd backend
    ```
 
 2. Install dependencies:
+
    ```
    pip install -r requirements.txt
    ```
 
 3. Run migrations:
+
    ```
    python manage.py migrate
    ```
@@ -62,16 +73,19 @@ The project is organized into two main directories:
 ### Frontend Setup
 
 1. Navigate to the frontend directory:
+
    ```
    cd frontend
    ```
 
 2. Install dependencies:
+
    ```
    npm install
    ```
 
 3. Start the development server:
+
    ```
    npm start
    ```
@@ -89,4 +103,4 @@ The project is organized into two main directories:
 
 ## API Endpoints
 
-Detailed API documentation can be found in the respective README files within the frontend and backend directories. 
+Detailed API documentation can be found in the respective README files within the frontend and backend directories.
